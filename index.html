@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taller de Ventas - Firebase</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light">
+
+  <div class="container py-4">
+    <!-- LOGIN -->
+    <div id="login-screen" class="text-center py-5">
+      <h2 class="mb-4">Iniciar Sesión</h2>
+      <div class="card mx-auto p-4 shadow-sm" style="max-width: 400px;">
+        <input type="email" id="login-email" class="form-control mb-2" placeholder="Correo">
+        <input type="password" id="login-pass" class="form-control mb-3" placeholder="Contraseña">
+        <button id="btn-login-email" class="btn btn-primary mb-2 w-100">Ingresar con Email</button>
+        <button id="btn-login-google" class="btn btn-danger w-100">Ingresar con Google</button>
+      </div>
+    </div>
+
+    <!-- PANTALLA PRINCIPAL -->
+    <div id="app-screen" style="display: none;">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Registro de Ventas</h2>
+        <button id="btn-logout" class="btn btn-outline-secondary">Cerrar Sesión</button>
+      </div>
+
+      <!-- FORMULARIO DE REGISTRO -->
+      <div class="card p-3 mb-4 shadow-sm">
+        <h5>Nueva Venta</h5>
+        <form id="form-venta" class="row g-3 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label">Fecha</label>
+            <input type="date" id="fecha" class="form-control" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Producto</label>
+            <input type="text" id="producto" class="form-control" placeholder="Nombre producto" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Cantidad</label>
+            <input type="number" id="cantidad" class="form-control" min="1" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Precio Unit.</label>
+            <input type="number" id="precio" class="form-control" step="0.01" min="0.01" required>
+          </div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-success w-100">Guardar</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- TOTALES Y FILTRO -->
+      <div class="row mb-3 align-items-center">
+        <div class="col-md-6">
+          <span class="badge bg-primary fs-6 me-2">Total Día: $<span id="total-dia">0.00</span></span>
+          <span class="badge bg-info text-dark fs-6">Total Mes: $<span id="total-mes">0.00</span></span>
+        </div>
+        <div class="col-md-6 d-flex justify-content-end">
+          <input type="text" id="filtro" class="form-control w-50" placeholder="Filtrar por fecha o mes (YYYY-MM)">
+        </div>
+      </div>
+
+      <!-- TABLA DE VENTAS -->
+      <div class="card p-3 mb-4 shadow-sm">
+        <table class="table table-striped align-middle">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Producto</th>
+              <th>Cantidad</th>
+              <th>Precio Unit.</th>
+              <th>Importe</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body"></tbody>
+        </table>
+      </div>
+
+      <!-- REPORTE GRÁFICO -->
+      <div class="card p-3 shadow-sm">
+        <h5>Reporte Gráfico por Producto</h5>
+        <canvas id="graficoVentas" style="max-height: 250px;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIBRERÍAS DE FIREBASE -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    // CONFIGURACIÓN REAL DE TU PROYECTO
+    const firebaseConfig = {
+      apiKey: "AIzaSyAJFyar9M5DPYxgf4RauTT5cswSrZsySn8",
+      authDomain: "juan-66b67.firebaseapp.com",
+      projectId: "juan-66b67",
+      storageBucket: "juan-66b67.firebasestorage.app",
+      messagingSenderId: "877588279644",
+      appId: "1:877588279644:web:6abb16c4c21f7550c45199",
+      measurementId: "G-BM4ZK3ZJBX"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let userActual = null;
+    let miGrafico = null;
+
+    // CONTROL DE SESIÓN
+    auth.onAuthStateChanged(user => {
+      userActual = user;
+      if (user) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app-screen').style.display = 'block';
+        cargarVentas();
+      } else {
+        document.getElementById('login-screen').style.display = 'block';
+        document.getElementById('app-screen').style.display = 'none';
+      }
+    });
+
+    // EVENTOS LOGIN
+    document.getElementById('btn-login-email').addEventListener('click', () => {
+      const email = document.getElementById('login-email').value;
+      const pass = document.getElementById('login-pass').value;
+      auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+    });
+
+    document.getElementById('btn-login-google').addEventListener('click', () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(e => alert(e.message));
+    });
+
+    document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
+
+    // REGISTRAR VENTA
+    document.getElementById('form-venta').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const fecha = document.getElementById('fecha').value;
+      const producto = document.getElementById('producto').value;
+      const cantidad = parseFloat(document.getElementById('cantidad').value);
+      const precioUnit = parseFloat(document.getElementById('precio').value);
+
+      if (cantidad <= 0 || precioUnit <= 0) {
+        alert("La cantidad y el precio deben ser mayores a cero.");
+        return;
+      }
+
+      const importe = cantidad * precioUnit;
+
+      db.collection('ventas').add({
+        fecha: fecha,
+        producto: producto,
+        cantidad: cantidad,
+        precioUnit: precioUnit,
+        importe: importe,
+        uid: userActual.uid
+      }).then(() => {
+        document.getElementById('form-venta').reset();
+      });
+    });
+
+    // MOSTRAR DATOS
+    function cargarVentas() {
+      db.collection('ventas')
+        .where('uid', '==', userActual.uid)
+        .onSnapshot(snapshot => {
+          const filtroTexto = document.getElementById('filtro').value;
+          const tabla = document.getElementById('tabla-body');
+          tabla.innerHTML = '';
+
+          let totalDia = 0;
+          let totalMes = 0;
+          
+          const hoy = new Date().toISOString().split('T')[0];
+          const mesActual = hoy.substring(0, 7);
+
+          const productosMap = {};
+
+          snapshot.forEach(doc => {
+            const v = doc.data();
+            const id = doc.id;
+
+            if (v.fecha === hoy) totalDia += v.importe;
+            if (v.fecha.startsWith(mesActual)) totalMes += v.importe;
+
+            productosMap[v.producto] = (productosMap[v.producto] || 0) + v.importe;
+
+            if (filtroTexto && !v.fecha.includes(filtroTexto)) return;
+
+            tabla.innerHTML += `
+              <tr>
+                <td>${v.fecha}</td>
+                <td>${v.producto}</td>
+                <td>${v.cantidad}</td>
+                <td>$${v.precioUnit.toFixed(2)}</td>
+                <td>$${v.importe.toFixed(2)}</td>
+                <td>
+                  <button class="btn btn-danger btn-sm" onclick="eliminarVenta('${id}')">Eliminar</button>
+                </td>
+              </tr>
+            `;
+          });
+
+          document.getElementById('total-dia').innerText = totalDia.toFixed(2);
+          document.getElementById('total-mes').innerText = totalMes.toFixed(2);
+
+          actualizarGrafico(productosMap);
+        });
+    }
+
+    document.getElementById('filtro').addEventListener('input', cargarVentas);
+
+    // ELIMINAR
+    window.eliminarVenta = (id) => {
+      db.collection('ventas').doc(id).delete();
+    };
+
+    // GRÁFICO
+    function actualizarGrafico(datos) {
+      const ctx = document.getElementById('graficoVentas').getContext('2d');
+      if (miGrafico) miGrafico.destroy();
+
+      miGrafico = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(datos),
+          datasets: [{
+            label: 'Total ($) por Producto',
+            data: Object.values(datos),
+            backgroundColor: 'rgba(54, 162, 235, 0.6)'
+          }]
+        }
+      });
+    }
+  </script>
+</body>
+</html>
