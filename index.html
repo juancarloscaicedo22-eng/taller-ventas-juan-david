@@ -16,6 +16,7 @@
       <div class="card mx-auto p-4 shadow-sm" style="max-width: 400px;">
         <input type="email" id="login-email" class="form-control mb-2" placeholder="Correo">
         <input type="password" id="login-pass" class="form-control mb-3" placeholder="Contraseña">
+        <button id="btn-crear-cuenta" class="btn btn-success mb-2 w-100">Crear Cuenta / Registrar persona</button>
         <button id="btn-login-email" class="btn btn-primary mb-2 w-100">Ingresar con Email</button>
         <button id="btn-login-google" class="btn btn-danger w-100">Ingresar con Google</button>
       </div>
@@ -127,6 +128,15 @@
       }
     });
 
+    // --- ESTA ES LA PARTE NUEVA QUE AGREGUÉ PARA CREAR USUARIO ---
+    document.getElementById('btn-crear-cuenta').addEventListener('click', () => {
+      const email = document.getElementById('login-email').value;
+      const pass = document.getElementById('login-pass').value;
+      auth.createUserWithEmailAndPassword(email, pass)
+       .then(() => alert("¡Persona registrada correctamente!"))
+       .catch(e => alert(e.message));
+    });
+
     // EVENTOS LOGIN
     document.getElementById('btn-login-email').addEventListener('click', () => {
       const email = document.getElementById('login-email').value;
@@ -144,7 +154,7 @@
     // REGISTRAR VENTA
     document.getElementById('form-venta').addEventListener('submit', (e) => {
       e.preventDefault();
-      
+
       const fecha = document.getElementById('fecha').value;
       const producto = document.getElementById('producto').value;
       const cantidad = parseFloat(document.getElementById('cantidad').value);
@@ -172,15 +182,15 @@
     // MOSTRAR DATOS
     function cargarVentas() {
       db.collection('ventas')
-        .where('uid', '==', userActual.uid)
-        .onSnapshot(snapshot => {
+       .where('uid', '==', userActual.uid)
+       .onSnapshot(snapshot => {
           const filtroTexto = document.getElementById('filtro').value;
           const tabla = document.getElementById('tabla-body');
           tabla.innerHTML = '';
 
           let totalDia = 0;
           let totalMes = 0;
-          
+
           const hoy = new Date().toISOString().split('T')[0];
           const mesActual = hoy.substring(0, 7);
 
@@ -195,7 +205,7 @@
 
             productosMap[v.producto] = (productosMap[v.producto] || 0) + v.importe;
 
-            if (filtroTexto && !v.fecha.includes(filtroTexto)) return;
+            if (filtroTexto &&!v.fecha.includes(filtroTexto)) return;
 
             tabla.innerHTML += `
               <tr>
@@ -220,7 +230,6 @@
 
     document.getElementById('filtro').addEventListener('input', cargarVentas);
 
-    // ELIMINAR
     window.eliminarVenta = (id) => {
       db.collection('ventas').doc(id).delete();
     };
@@ -245,13 +254,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
